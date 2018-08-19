@@ -1,2 +1,2 @@
-# minesweeper-cljs-clojure
+# minesweeper-web-cljs
 Minesweeper designed in ClojureScript
