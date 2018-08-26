@@ -1,14 +1,16 @@
-(ns minesweeper-web-cljs.core
-    (:require
-      [reagent.core :as r]))
-      ;[stylefy.core :as stylefy]))
+(ns ^:figwheel-always minesweeper-web-cljs.core
+    (:require [reagent.core :as r :refer [atom]]))
 
-;(stylefy/init)
+(enable-console-print!)
 
 (defn rand-bool [range] ;; RANDOM BOOLEAN AT A GIVEN PROBABILITY (THE HIGHER THE LESS LIKELY TO BE TRUE)
   (zero? (rand-int range)))
 
-(def grid (atom (mapv vec (partition 5 (take 25 (repeatedly #(rand-bool 4))))))) ;; CREATES A 5x5 GRID of bools
+(defonce app-state 
+  (atom 
+  {:bool-grid (mapv vec (partition 5 (take 25 (repeatedly #(rand-bool 4))))) ;; CHANGED TO SOLVED GRID
+  :visual-grid (mapv vec (repeat 5 (repeat 5 "?"))) 
+  :game-over false }))
 
 (defn how-many-mines [depth] ;; CREATES A VECTOR OF THE SURROUNDING SQUARES' COORDINATES WITH A PERMUTATION FUNCTION
   (let [foo (vec (range (- depth) (inc depth)))] ;; RANGE OF SQUARES TO LOOK THRU BASED ON PARAMETER 'depth'
@@ -20,48 +22,62 @@
   (count ;; COUNTS HOW MANY TRUES ARE PRESENT WITHIN A CONCATENATED VECTOR
     (filter identity ;; REMOVES FALSE BY FILTERING OUT NON-TRUE AND NIL
       (map 
-        (fn [x] 
+        (fn [i j] 
           (try
-            (nth (nth @grid (first x))(second x))
+            ;((nth (nth @grid (first x))(second x)))
+            (get-in (@app-state :bool-grid) [i j])
+            ;;(throw (js/Error. "Uh-oh!!!"))
             (catch js/Error e false) ;; INDEX OUT OF BOUNDS ERROR CHECKING WITH REACT.JS
             (finally)))
       (coordinates i j)))))
 
 (defn mine? [i j] ;; CHECKS IF THE PLAYER HAS CLICKED A MINE (WHICH INDICATES A LOSS)
-  (if (= true (nth (nth @grid i) j))
+  (if (= true (get-in (@app-state :bool-grid) [i j]))
+    ;; (get-in (@app-state :bool-grid) [i j])
     (js/alert "You have hit a mine... You lose!!!")
     (solved-square i j)))
 
-(defn button-coordinates [size]
-  (let [nums (mapv #(* % 100) (range 0 size)) mutable-vec (r/atom [])]
-    (doseq [x nums y nums] (swap! mutable-vec #(conj @mutable-vec (concat [(+ 10 x)] [(+ 10 y)]))))
+(defn render-single-square [i j]
+  (if (get-in (:visual-grid @app-state) [i j]) "O" "X"))
+
+(defn button-svg-coordinates [size]
+  (let [nums (mapv #(* % 100) (range 0 size)) mutable-vec (atom [])]
+    (doseq [x nums y nums] (swap! mutable-vec #(conj @mutable-vec (concat [x] [y]))))
     (mapv vec @mutable-vec)))
 
-(defn mine-sweeper []
-  [:div [:h2 "Welcome to Reagent"]]
-  [:svg {:style {:border "3px solid"
+(defn mine-sweeper [] 
+  (when (not= true (:game-over @app-state))
+  [:div [:h2 "Welcome to Minesweeper!"]
+  (into [:svg {:style {:border "3px solid"
              :background "white"
+             :view-box "0 0 5 5"
              :width "500px"
              :height "500px"}}
-  (for [xys (button-coordinates 5)]
-      (let [mutable-text (r/atom "X")]
-        ^{:key xys}
+  (for [xys (button-svg-coordinates 5)]
+        (let [i (/ (first xys) 100) j (/(second xys) 100)]
+        ^{:key [i j]} 
         [:g
-          [:rect {:x (first xys) 
-              :y (second xys) 
+          [:rect {:x (+ (first xys) 10)
+              :y (+ (second xys) 10)
               :fill "darkgray" 
-              :width 80 
+              :width 80
               :height 80 
-              :on-click #(js/alert (mine? (/ (first xys)100) (/ (second xys)100)))}]
+              :on-click 
+              (fn [_] (reset! app-state (assoc-in @app-state [:visual-grid i j] (mine? i j))))
+                  }]
           [:text {:x (+ (first xys) 25) 
               :y (+ (second xys) 60) 
               :fill "red" 
-              :style 
-              {:font "bold 50px san-serif"}} 
-              @mutable-text]]))])
+              :on-click (fn [_] (reset! app-state (assoc-in @app-state [:visual-grid i j] (mine? i j))))
+              :style {:font "bold 50px san-serif"}} 
+              (get-in @app-state [:visual-grid i j])]
+         ]))])]))
     
 (defn mount-root []
   (r/render [mine-sweeper] (.getElementById js/document "app")))
 
 (defn init! []
   (mount-root))
+
+(defn on-js-reload []
+  (prn (:visual-grid @app-state)))
