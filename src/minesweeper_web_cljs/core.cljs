@@ -1,51 +1,46 @@
 (ns ^:figwheel-always minesweeper-web-cljs.core
     (:require [reagent.core :as r :refer [atom]]))
 
-(enable-console-print!)
-
-(defn rand-bool [range] ;; RANDOM BOOLEAN AT A GIVEN PROBABILITY (THE HIGHER THE LESS LIKELY TO BE TRUE)
+(defn- rand-bool [range] ;; RANDOM BOOLEAN AT A GIVEN PROBABILITY (THE HIGHER THE LESS LIKELY TO BE TRUE)
   (zero? (rand-int range)))
 
-(defonce app-state 
+(defonce ^:private app-state 
   (atom 
   {:bool-grid (mapv vec (partition 5 (take 25 (repeatedly #(rand-bool 4))))) ;; CHANGED TO SOLVED GRID
   :visual-grid (mapv vec (repeat 5 (repeat 5 "?"))) 
   :game-over false }))
 
-(defn how-many-mines [depth] ;; CREATES A VECTOR OF THE SURROUNDING SQUARES' COORDINATES WITH A PERMUTATION FUNCTION
+(defn- how-many-mines [depth] ;; CREATES A VECTOR OF THE SURROUNDING SQUARES' COORDINATES WITH A PERMUTATION FUNCTION
   (let [foo (vec (range (- depth) (inc depth)))] ;; RANGE OF SQUARES TO LOOK THRU BASED ON PARAMETER 'depth'
     (mapv vec (mapcat (fn [x] (map (fn [y] (concat [x] [y])) foo)) foo)))) ;; RETURNS A VECTOR OF ALL POSSIBLE COORDINATES (SHORTENED PERMUTATION)
   
-(defn coordinates [i j] (mapv vec (map #(map + [i j] %) (how-many-mines 1)))) ;; APPLIES ADDITION TO POSSIBLE COORDINATES WITH INPUT COORDINATES
+(defn- coordinates [i j] (mapv vec (map #(map + [i j] %) (how-many-mines 1)))) ;; APPLIES ADDITION TO POSSIBLE COORDINATES WITH INPUT COORDINATES
 
-(defn solved-square [i j] ;; RETURNS HOW MANY MINES ARE PRESENT TO THE CLICKED SQUARE
+(defn- solved-square [i j] ;; RETURNS HOW MANY MINES ARE PRESENT TO THE CLICKED SQUARE
   (count ;; COUNTS HOW MANY TRUES ARE PRESENT WITHIN A CONCATENATED VECTOR
     (filter identity ;; REMOVES FALSE BY FILTERING OUT NON-TRUE AND NIL
       (map 
         (fn [i j] 
           (try
-            ;((nth (nth @grid (first x))(second x)))
             (get-in (@app-state :bool-grid) [i j])
-            ;;(throw (js/Error. "Uh-oh!!!"))
             (catch js/Error e false) ;; INDEX OUT OF BOUNDS ERROR CHECKING WITH REACT.JS
             (finally)))
       (coordinates i j)))))
 
-(defn mine? [i j] ;; CHECKS IF THE PLAYER HAS CLICKED A MINE (WHICH INDICATES A LOSS)
+(defn- mine? [i j] ;; CHECKS IF THE PLAYER HAS CLICKED A MINE (WHICH INDICATES A LOSS)
   (if (= true (get-in (@app-state :bool-grid) [i j]))
-    ;; (get-in (@app-state :bool-grid) [i j])
     (js/alert "You have hit a mine... You lose!!!")
     (solved-square i j)))
 
-(defn render-single-square [i j]
+(defn- render-single-square [i j]
   (if (get-in (:visual-grid @app-state) [i j]) "O" "X"))
 
-(defn button-svg-coordinates [size]
+(defn- button-svg-coordinates [size]
   (let [nums (mapv #(* % 100) (range 0 size)) mutable-vec (atom [])]
     (doseq [x nums y nums] (swap! mutable-vec #(conj @mutable-vec (concat [x] [y]))))
     (mapv vec @mutable-vec)))
 
-(defn mine-sweeper [] 
+(defn- mine-sweeper [] 
   (when (not= true (:game-over @app-state))
   [:div [:h2 "Welcome to Minesweeper!"]
   (into [:svg {:style {:border "3px solid"
